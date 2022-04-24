@@ -40,15 +40,15 @@ impl Ledger {
             + &note_pattern.to_owned();
 
         // Regex objects
-        let comment_regex: Regex = Regex::new(comment_pattern).unwrap();
-        let date_regex: Regex = Regex::new(date_pattern).unwrap();
-        let time_range_regex: Regex = Regex::new(time_range_pattern).unwrap();
-        let header_regex: Regex = Regex::new(header_pattern.as_str()).unwrap();
-        let account_regex: Regex = Regex::new(account_pattern).unwrap();
-        let invoice_regex: Regex = Regex::new(invoice_pattern.as_str()).unwrap();
-        let additional_sender_regex: Regex = Regex::new(additional_sender_pattern).unwrap();
-        let recipient_regex: Regex = Regex::new(recipient_pattern).unwrap();
-        let payment_regex: Regex = Regex::new(payment_pattern.as_str()).unwrap();
+        let comment_regex = Regex::new(comment_pattern).unwrap();
+        let date_regex = Regex::new(date_pattern).unwrap();
+        let time_range_regex = Regex::new(time_range_pattern).unwrap();
+        let header_regex = Regex::new(header_pattern.as_str()).unwrap();
+        let account_regex = Regex::new(account_pattern).unwrap();
+        let invoice_regex = Regex::new(invoice_pattern.as_str()).unwrap();
+        let additional_sender_regex = Regex::new(additional_sender_pattern).unwrap();
+        let recipient_regex = Regex::new(recipient_pattern).unwrap();
+        let payment_regex = Regex::new(payment_pattern.as_str()).unwrap();
 
         // Open input file
         let transactions_file = File::open(input).unwrap();
@@ -84,6 +84,7 @@ impl Ledger {
             } else if let Some(_captures) = comment_regex.captures(&line) {
                 // Ignore comment
             } else if let Some(captures) = account_regex.captures(&line) {
+                // Add new account
                 accounts.push(Account::new(&captures));
             } else if let Some(captures) = invoice_regex.captures(&line) {
                 // Determine invoice dates
@@ -161,7 +162,7 @@ impl Ledger {
                     .iter()
                     .map(|acronym| account::find_index(&acronym, &accounts))
                     .collect();
-                // Create invoices
+                // Add invoices
                 let total_amount = captures
                     .name("amount")
                     .unwrap()
@@ -193,6 +194,7 @@ impl Ledger {
                     }
                 }
             } else if let Some(captures) = payment_regex.captures(&line) {
+                // Add payment
                 let sender_acronym = captures.name("sender").unwrap().as_str().to_owned();
                 let recipient_acronym = captures.name("recipient").unwrap().as_str().to_owned();
                 payments.push(Transaction::new(

@@ -30,7 +30,7 @@ impl fmt::Display for Date {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}.{}.{}",
+            "{:#02}.{:#02}.{:#04}",
             self.naive_date.day(),
             self.naive_date.month(),
             self.naive_date.year()

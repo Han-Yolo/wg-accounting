@@ -1,6 +1,8 @@
 use crate::account::Account;
 use crate::date::Date;
 
+use std::cmp::Ordering;
+
 pub struct Transaction {
     sender_index: usize,
     recipient_index: usize,
@@ -49,5 +51,24 @@ impl Transaction {
             self.date,
             self.note
         )
+    }
+}
+impl Ord for Transaction {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.date.cmp(&other.date)
+    }
+}
+impl PartialOrd for Transaction {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Eq for Transaction {}
+impl PartialEq for Transaction {
+    fn eq(&self, other: &Self) -> bool {
+        (self.sender_index == other.sender_index)
+            && (self.recipient_index == other.recipient_index)
+            && (self.date == other.date)
+            && (self.note == other.note)
     }
 }
