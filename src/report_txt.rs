@@ -8,11 +8,20 @@ use std::fs::File;
 use std::io::Write as IoWrite;
 use std::path::Path;
 
+enum MoneyFlow {
+    In,
+    Out,
+}
+
 pub fn generate(ledger: &Ledger, balance: &Balance, output: &Path, acronym: &String) {
     let accounts = ledger.accounts();
     let account_index = account::find_index(acronym, accounts);
     let account_name = accounts[account_index].name();
-    let file_name = "WG Abrechnung ".to_owned() + &account_name;
+    let title = format!(
+        "WG Abrechnung {} {}",
+        ledger.accounting_date(),
+        &account_name
+    );
 
     let mut incoming_invoices: Vec<&Transaction> = Vec::new();
     let mut outgoing_invoices: Vec<&Transaction> = Vec::new();
@@ -36,101 +45,115 @@ pub fn generate(ledger: &Ledger, balance: &Balance, output: &Path, acronym: &Str
 
     let mut relevant_balance_entries: Vec<&BalanceEntry> = Vec::new();
     for balance_entry in balance.entries() {
-        if balance_entry.sender_index() == account_index {
-            relevant_balance_entries.push(balance_entry);
-        } else if balance_entry.sender_index() == account_index {
+        if (balance_entry.sender_index() == account_index)
+            || (balance_entry.recipient_index() == account_index)
+        {
             relevant_balance_entries.push(balance_entry);
         }
     }
 
-    let mut file = File::create(output.join(&file_name).with_extension("txt")).unwrap();
-    writeln!(&mut file, "{}", file_name).unwrap();
+    let mut file =
+        File::create(output.join(&title.replace(".", "_")).with_extension("txt")).unwrap();
+    writeln!(&mut file, "{}", title).unwrap();
     add_transaction_table(
         &mut file,
         "Zu zahlen",
-        "An",
+        MoneyFlow::Out,
         accounts,
         &mut incoming_invoices,
     );
     add_transaction_table(
         &mut file,
         "Zu gute",
-        "Von",
+        MoneyFlow::In,
         accounts,
         &mut outgoing_invoices,
     );
-    add_transaction_table(&mut file, "Gezahlt", "An", accounts, &mut outgoing_payments);
+    add_transaction_table(
+        &mut file,
+        "Gezahlt",
+        MoneyFlow::Out,
+        accounts,
+        &mut outgoing_payments,
+    );
     add_transaction_table(
         &mut file,
         "Erhalten",
-        "Von",
+        MoneyFlow::In,
         accounts,
         &mut incoming_payments,
     );
     writeln!(file, "\nNoch offen:").unwrap();
-    if relevant_balance_entries.len() != 0 {
-        relevant_balance_entries.sort_by(|a, b| a.balance().partial_cmp(&b.balance()).unwrap());
-        for balance_entry in relevant_balance_entries {
-            if balance_entry.balance() > 0.01 {
-                let debtor_creditor = if balance_entry.balance() > 0.0 {
-                    (
-                        balance_entry.sender_index(),
-                        balance_entry.recipient_index(),
-                    )
-                } else {
-                    (
-                        balance_entry.recipient_index(),
-                        balance_entry.sender_index(),
-                    )
-                };
-                let mut line = String::new();
-                write!(
-                    line,
-                    "{} -> {}  ",
-                    accounts[debtor_creditor.0].name(),
-                    accounts[debtor_creditor.1].name()
+    let mut uncleared_balance_found = false;
+    relevant_balance_entries.sort_by(|a, b| a.balance().partial_cmp(&b.balance()).unwrap());
+    for balance_entry in relevant_balance_entries {
+        let balance = (balance_entry.balance() * 100.0).round() / 100.0;
+        if balance.abs() >= 0.01 {
+            uncleared_balance_found = true;
+            let debtor_creditor = if balance > 0.0 {
+                (
+                    balance_entry.recipient_index(),
+                    balance_entry.sender_index(),
                 )
-                .unwrap();
-                for _ in line.len()..35 {
-                    line.push(' ');
-                }
-                add_amount_to_string(balance_entry.balance().abs(), &mut line);
-                // Write line to file
-                writeln!(file, "{}", line).unwrap();
+            } else {
+                (
+                    balance_entry.sender_index(),
+                    balance_entry.recipient_index(),
+                )
+            };
+            let mut line = String::new();
+            write!(
+                line,
+                "{} -> {}",
+                accounts[debtor_creditor.0].name(),
+                accounts[debtor_creditor.1].name()
+            )
+            .unwrap();
+            for _ in line.chars().count()..35 {
+                line.push(' ');
             }
+            add_amount_to_string(balance.abs(), &mut line);
+            // Write line to file
+            writeln!(file, "{}", line).unwrap();
         }
+    }
+    if !uncleared_balance_found {
+        writeln!(file, "-").unwrap();
     }
 }
 
 fn add_transaction_table(
     file: &mut File,
     name: &str,
-    preposition: &str,
+    money_flow: MoneyFlow,
     accounts: &Vec<Account>,
     transactions: &mut Vec<&Transaction>,
 ) {
     if transactions.len() != 0 {
         transactions.sort();
+        let preposition = match money_flow {
+            MoneyFlow::In => "Von",
+            MoneyFlow::Out => "An",
+        };
         writeln!(file, "\n{}:", name).unwrap();
         for transaction in transactions {
             let mut line = String::new();
             write!(line, "{}", transaction.date()).unwrap();
+
             assert!(preposition.len() <= 4);
-            for _ in line.len()..(15 - preposition.len()) {
+            for _ in line.chars().count()..(15 - preposition.len()) {
                 line.push(' ');
             }
-            write!(
-                line,
-                "{} {}",
-                preposition,
-                accounts[transaction.recipient_index()].name()
-            )
-            .unwrap();
-            for _ in line.len()..35 {
+            let other_index = match money_flow {
+                MoneyFlow::In => transaction.sender_index(),
+                MoneyFlow::Out => transaction.recipient_index(),
+            };
+            write!(line, "{} {}", preposition, accounts[other_index].name()).unwrap();
+            for _ in line.chars().count()..35 {
                 line.push(' ');
             }
             add_amount_to_string(transaction.amount(), &mut line);
-            for _ in line.len()..50 {
+            for _ in line.chars().count()..50 {
                 line.push(' ');
             }
             write!(line, "{}", transaction.note()).unwrap();

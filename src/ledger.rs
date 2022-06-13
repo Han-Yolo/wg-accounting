@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub struct Ledger {
-    today: Date,
+    accounting_date: Date,
     accounts: Vec<Account>,
     invoices: Vec<Transaction>,
     payments: Vec<Transaction>,
@@ -22,7 +22,7 @@ impl Ledger {
         let time_range_pattern = r"(?P<end_date>\s-\s\d{1,2}\.\d{1,2}\.\d{4})(?P<frequency>\s:\s\d{1,2}\.\d{1,2}\.\d{4})";
         let amount_pattern = r"(?P<amount>\d+\.\d+)";
         let note_pattern = r"(?P<note>.+)";
-        let header_pattern = r"^today\s".to_owned() + &date_pattern.to_owned() + r"$";
+        let header_pattern = r"^accounting_date\s".to_owned() + &date_pattern.to_owned() + r"$";
         let account_pattern = r"^account\s(?P<acronym>[A-Z]{2})\s(?P<name>.+)";
         let invoice_pattern =
             r"^invoice\s(?P<first_sender>[A-Z]{2})(\s:\s[A-Z]{2})*(\s->\s[A-Z]{2})+\s".to_owned()
@@ -57,7 +57,7 @@ impl Ledger {
         // Parse header
         let first_line = transactions_lines.next().unwrap().unwrap();
         let header_captures = header_regex.captures(&first_line).unwrap();
-        let today = Date::new(&header_captures);
+        let accounting_date = Date::new(&header_captures);
 
         // Parse accounts, invoices and transactions
         let mut accounts: Vec<Account> = Vec::new();
@@ -88,12 +88,17 @@ impl Ledger {
                 accounts.push(Account::new(&captures));
             } else if let Some(captures) = invoice_regex.captures(&line) {
                 // Determine invoice dates
-                let mut invoice_dates: Vec<Date> = Vec::new();
-                invoice_dates.push(Date::new(
+                let start_date = Date::new(
                     &date_regex
                         .captures(captures.name("start_date").unwrap().as_str())
                         .unwrap(),
-                ));
+                );
+                if start_date > accounting_date {
+                    // Ignore invoice
+                    continue;
+                }
+                let mut invoice_dates: Vec<Date> = Vec::new();
+                invoice_dates.push(start_date);
                 if let Some(time_range_match) = captures.name("time_range") {
                     let time_range_captures = time_range_regex
                         .captures(time_range_match.as_str())
@@ -103,8 +108,8 @@ impl Ledger {
                             .captures(time_range_captures.name("end_date").unwrap().as_str())
                             .unwrap(),
                     );
-                    if end_date > today {
-                        end_date = today;
+                    if end_date > accounting_date {
+                        end_date = accounting_date;
                     }
                     let frequency_captures = date_regex
                         .captures(time_range_captures.name("frequency").unwrap().as_str())
@@ -127,7 +132,7 @@ impl Ledger {
                         .as_str()
                         .parse::<u32>()
                         .unwrap();
-                    let mut new_date = invoice_dates[0];
+                    let mut new_date = start_date;
                     loop {
                         new_date.add(frequency_days, frequency_months, frequency_years);
                         if new_date > end_date {
@@ -214,11 +219,14 @@ impl Ledger {
             }
         }
         Self {
-            today: today,
+            accounting_date: accounting_date,
             accounts: accounts,
             invoices: invoices,
             payments: payments,
         }
+    }
+    pub fn accounting_date(&self) -> &Date {
+        &self.accounting_date
     }
     pub fn accounts(&self) -> &Vec<Account> {
         &self.accounts
@@ -232,7 +240,9 @@ impl Ledger {
 }
 impl fmt::Display for Ledger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut string = format!("Today {}\n", &self.today).as_str().to_owned();
+        let mut string = format!("Accounting date {}\n", &self.accounting_date)
+            .as_str()
+            .to_owned();
         string += "\nAccounts:\n";
         for account in &self.accounts {
             string += format!("{}\n", account).as_str();

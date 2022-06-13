@@ -65,6 +65,7 @@ impl Balance {
             payment.amount(),
         );
     }
+    #[allow(dead_code)]
     pub fn to_string(&self, accounts: &Vec<Account>) -> String {
         let mut string = "Balance:\n".to_owned();
         for entry in &self.entries {
