@@ -223,6 +223,11 @@ impl Ledger {
                 // Add payment
                 let sender_acronym = captures.name("sender").unwrap().as_str().to_owned();
                 let recipient_acronym = captures.name("recipient").unwrap().as_str().to_owned();
+                let date = Date::new(&captures);
+                if date > accounting_date {
+                    // Ignore payment
+                    continue;
+                }
                 payments.push(Transaction::new(
                     account::find_index(&sender_acronym, &accounts),
                     account::find_index(&recipient_acronym, &accounts),
@@ -232,7 +237,7 @@ impl Ledger {
                         .as_str()
                         .parse::<f64>()
                         .unwrap(),
-                    Date::new(&captures),
+                    date,
                     captures.name("note").unwrap().as_str().to_owned(),
                 ));
             } else {

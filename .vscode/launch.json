@@ -20,7 +20,12 @@
                 }
             },
             "args": [
-                "/home/hanyolo/Documents/WG/transactions.txt"
+                "/home/hanyolo/Documents/WG/ledger.txt",
+                "SH",
+                "AN",
+                "AK",
+                "MM",
+                "NJ"
             ],
             "cwd": "${workspaceFolder}"
         },
