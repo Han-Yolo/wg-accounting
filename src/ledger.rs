@@ -67,10 +67,31 @@ impl Ledger {
         let mut add_invoice =
             |sender_index: usize, recipient_index: usize, amount: f64, date: Date, note: String| {
                 if sender_index != recipient_index {
+                    let mut actual_amount = amount;
+                    let existing_invoice = invoices.iter().find(|invoice| {
+                        (((invoice.sender_index() == sender_index)
+                            && (invoice.recipient_index() == recipient_index))
+                            || ((invoice.sender_index() == recipient_index)
+                                && (invoice.recipient_index() == sender_index)))
+                            && (invoice.date() == date)
+                            && (invoice.note() == note)
+                    });
+                    if existing_invoice.is_some() {
+                        // This invoice exists already
+                        let existing_invoice_clone = (*existing_invoice.unwrap()).clone();
+                        // Add the amount of the existing invoice to the new invoice
+                        actual_amount += if existing_invoice_clone.sender_index() == sender_index {
+                            existing_invoice_clone.amount()
+                        } else {
+                            -existing_invoice_clone.amount()
+                        };
+                        // Remove existing invoice
+                        invoices.retain(|invoice| invoice != &existing_invoice_clone);
+                    }
                     invoices.push(Transaction::new(
                         sender_index,
                         recipient_index,
-                        amount,
+                        actual_amount,
                         date,
                         note,
                     ));

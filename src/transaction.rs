@@ -3,6 +3,7 @@ use crate::date::Date;
 
 use std::cmp::Ordering;
 
+#[derive(Clone)]
 pub struct Transaction {
     sender_index: usize,
     recipient_index: usize,
